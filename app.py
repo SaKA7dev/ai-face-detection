@@ -411,6 +411,14 @@ def process_frame(frame):
     cv2.putText(img, "AARAV SHUKLA", (w - 165, 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.42, (139, 92, 246), 1, cv2.LINE_AA)
 
+    # ── Encode volume as pixel data for JS bridge ──────────────────────────
+    # Bottom-left 12x4 block: BGR = (0, 200, volume_0_100)
+    # JS reads R channel = volume, G≈200 = marker to confirm valid data
+    enc = int(np.clip(vol, 0, 100))
+    img[h-4:h, 0:12, 0] = 0      # B = 0
+    img[h-4:h, 0:12, 1] = 200    # G = 200 (marker)
+    img[h-4:h, 0:12, 2] = enc    # R = volume (0-100)
+
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 
@@ -521,6 +529,7 @@ AUDIO_HTML = """
     const status = document.getElementById('ga-status');
 
     let playing = false;
+    let cachedVideo = null;
 
     window.togglePlay = function() {
         if (!playing) {
@@ -542,32 +551,87 @@ AUDIO_HTML = """
         }
     };
 
-    // Poll the hidden #gesture-vol-data element that Streamlit injects
-    function pollVolume() {
-        try {
-            // Walk up to the parent Streamlit document
-            const root = window.parent.document;
-            const el = root.getElementById('gesture-vol-data');
-            if (el) {
-                const v = parseInt(el.getAttribute('data-vol') || '0', 10);
-                const clamped = Math.max(0, Math.min(100, v));
-                audio.volume = clamped / 100;
-                volBar.style.width = clamped + '%';
-                volLbl.textContent = clamped + '%';
+    /* ── Find the WebRTC video element ── */
+    function findVideo() {
+        if (cachedVideo && cachedVideo.videoWidth > 0) return cachedVideo;
+        const parent = window.parent.document;
 
-                // Color shift based on level
-                if (clamped < 30) {
-                    volBar.style.background = 'linear-gradient(90deg,#3c8ce7,#00eaff)';
-                } else if (clamped < 65) {
-                    volBar.style.background = 'linear-gradient(90deg,#22c55e,#4ade80)';
-                } else {
-                    volBar.style.background = 'linear-gradient(90deg,#8b5cf6,#a78bfa)';
+        // Check videos directly in parent
+        for (const v of parent.querySelectorAll('video')) {
+            if (v.videoWidth > 0) { cachedVideo = v; return v; }
+        }
+        // Check inside iframes (streamlit_webrtc uses one)
+        for (const f of parent.querySelectorAll('iframe')) {
+            try {
+                if (!f.contentDocument) continue;
+                for (const v of f.contentDocument.querySelectorAll('video')) {
+                    if (v.videoWidth > 0) { cachedVideo = v; return v; }
                 }
-            }
-        } catch(e) { /* cross-origin safe */ }
+            } catch(e) { /* cross-origin skip */ }
+        }
+        return null;
     }
 
-    setInterval(pollVolume, 200);
+    /* ── Canvas for reading pixels ── */
+    const rc = document.createElement('canvas');
+    rc.width = 12; rc.height = 4;
+    const rctx = rc.getContext('2d', { willReadFrequently: true });
+
+    /* ── Read volume encoded in the bottom-left 12x4 pixel block ── */
+    function readVolFromVideo() {
+        const video = findVideo();
+        if (!video || video.videoWidth === 0 || video.readyState < 2) return -1;
+        try {
+            const vw = video.videoWidth;
+            const vh = video.videoHeight;
+            // Draw just the bottom-left 12x4 area
+            rctx.drawImage(video, 0, vh - 4, 12, 4, 0, 0, 12, 4);
+            const px = rctx.getImageData(0, 0, 12, 4).data;
+            let totalR = 0, valid = 0;
+            for (let i = 0; i < 48; i++) {      // 12 * 4 pixels
+                const r = px[i * 4];             // R = encoded volume
+                const g = px[i * 4 + 1];         // G ≈ 200 (marker)
+                const b = px[i * 4 + 2];         // B ≈ 0
+                if (g > 120 && b < 80) {          // compression-tolerant check
+                    totalR += r;
+                    valid++;
+                }
+            }
+            if (valid >= 20) return Math.round(totalR / valid);
+        } catch(e) { /* canvas tainted or cross-origin */ }
+        return -1;
+    }
+
+    /* ── Fallback: read from hidden data attribute ── */
+    function readVolFromAttr() {
+        try {
+            const el = window.parent.document.getElementById('gesture-vol-data');
+            if (el) return parseInt(el.getAttribute('data-vol') || '-1', 10);
+        } catch(e) {}
+        return -1;
+    }
+
+    /* ── Main polling loop ── */
+    function updateVolume() {
+        let vol = readVolFromVideo();
+        if (vol < 0) vol = readVolFromAttr();   // fallback
+        if (vol < 0) return;
+
+        const clamped = Math.max(0, Math.min(100, vol));
+        audio.volume = clamped / 100;
+        volBar.style.width = clamped + '%';
+        volLbl.textContent = clamped + '%';
+
+        if (clamped < 30) {
+            volBar.style.background = 'linear-gradient(90deg,#3c8ce7,#00eaff)';
+        } else if (clamped < 65) {
+            volBar.style.background = 'linear-gradient(90deg,#22c55e,#4ade80)';
+        } else {
+            volBar.style.background = 'linear-gradient(90deg,#8b5cf6,#a78bfa)';
+        }
+    }
+
+    setInterval(updateVolume, 200);
 })();
 </script>
 """
