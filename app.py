@@ -9,8 +9,10 @@ import math
 import os
 import threading
 import urllib.request
+import time
 
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_webrtc import webrtc_streamer
 import av
 import mediapipe as mp
@@ -236,6 +238,9 @@ header[data-testid="stHeader"] { background: transparent !important; }
 
 /* ── WebRTC overrides ── */
 .stApp iframe { border-radius: 10px !important; }
+
+/* ── Hide the volume data element ── */
+#gesture-vol-data { display: none !important; }
 </style>""", unsafe_allow_html=True)
 
 # ── Model ─────────────────────────────────────────────────────────────────────
@@ -453,26 +458,121 @@ webrtc_streamer(
     },
 )
 
-st.markdown("""
-<div class="section-card">
-    <div class="section-header">
-        <div class="section-dot"></div>
-        <span class="section-title">Test Audio</span>
+# ── Expose current volume to the browser via a hidden element ─────────────────
+vol_now = int(state["vol"])
+st.markdown(
+    f'<div id="gesture-vol-data" data-vol="{vol_now}"></div>',
+    unsafe_allow_html=True,
+)
+
+# ── Audio player with gesture-controlled volume (self-contained component) ────
+AUDIO_HTML = """
+<div id="gesture-audio-root" style="
+    background:#12121a; border-radius:12px; padding:18px 18px 14px;
+    border:1px solid #1e1e2e; font-family:'Inter',sans-serif;">
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:#8b5cf6;
+                    box-shadow:0 0 8px rgba(139,92,246,0.25);"></div>
+        <span style="color:#52525b;font-size:0.68rem;font-weight:600;
+                     letter-spacing:0.08em;text-transform:uppercase;
+                     font-family:'Fira Code',monospace;">GESTURE AUDIO CONTROL</span>
     </div>
-    <div style="background:#12121a; border-radius:10px; padding:12px 14px;">
-        <audio controls loop preload="auto"
-            style="width:100%; height:36px; border-radius:6px;
-                   filter: invert(0.85) hue-rotate(180deg) saturate(0.5) brightness(0.9);">
-            <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
-            Your browser does not support audio.
-        </audio>
-        <p style="color:#52525b; font-size:11px; margin:6px 0 0;
-                  font-family:'Fira Code',monospace; text-align:center; letter-spacing:0.02em;">
-            Press ▶ to play · Volume level shown on camera feed
-        </p>
+
+    <!-- Play / Pause button -->
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+        <button id="ga-play-btn" onclick="togglePlay()" style="
+            background:linear-gradient(135deg,#8b5cf6,#7c3aed);border:none;
+            color:#fff;width:42px;height:42px;border-radius:10px;cursor:pointer;
+            font-size:18px;display:flex;align-items:center;justify-content:center;
+            box-shadow:0 0 16px rgba(139,92,246,0.25);transition:transform 0.15s;">▶</button>
+
+        <div style="flex:1;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="color:#e4e4e7;font-size:0.78rem;font-weight:500;">SoundHelix Song 1</span>
+                <span id="ga-vol-label" style="color:#8b5cf6;font-size:0.72rem;
+                      font-family:'Fira Code',monospace;font-weight:600;">0%</span>
+            </div>
+
+            <!-- Volume bar -->
+            <div style="width:100%;height:6px;background:#1e1e2e;border-radius:100px;overflow:hidden;">
+                <div id="ga-vol-bar" style="width:0%;height:100%;border-radius:100px;
+                     background:linear-gradient(90deg,#8b5cf6,#a78bfa);
+                     transition:width 0.15s ease;"></div>
+            </div>
+        </div>
     </div>
+
+    <p id="ga-status" style="color:#52525b;font-size:10px;margin:0;
+       font-family:'Fira Code',monospace;text-align:center;letter-spacing:0.03em;">
+        Press ▶ then use hand gestures to control volume
+    </p>
 </div>
-""", unsafe_allow_html=True)
+
+<audio id="ga-audio" loop preload="auto"
+       src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>
+
+<script>
+(function() {
+    const audio  = document.getElementById('ga-audio');
+    const btn    = document.getElementById('ga-play-btn');
+    const volBar = document.getElementById('ga-vol-bar');
+    const volLbl = document.getElementById('ga-vol-label');
+    const status = document.getElementById('ga-status');
+
+    let playing = false;
+
+    window.togglePlay = function() {
+        if (!playing) {
+            audio.play().then(() => {
+                playing = true;
+                btn.textContent = '⏸';
+                status.textContent = 'Playing — gesture controls active';
+                status.style.color = '#22c55e';
+            }).catch(e => {
+                status.textContent = 'Click again (browser blocked autoplay)';
+                status.style.color = '#f59e0b';
+            });
+        } else {
+            audio.pause();
+            playing = false;
+            btn.textContent = '▶';
+            status.textContent = 'Paused';
+            status.style.color = '#52525b';
+        }
+    };
+
+    // Poll the hidden #gesture-vol-data element that Streamlit injects
+    function pollVolume() {
+        try {
+            // Walk up to the parent Streamlit document
+            const root = window.parent.document;
+            const el = root.getElementById('gesture-vol-data');
+            if (el) {
+                const v = parseInt(el.getAttribute('data-vol') || '0', 10);
+                const clamped = Math.max(0, Math.min(100, v));
+                audio.volume = clamped / 100;
+                volBar.style.width = clamped + '%';
+                volLbl.textContent = clamped + '%';
+
+                // Color shift based on level
+                if (clamped < 30) {
+                    volBar.style.background = 'linear-gradient(90deg,#3c8ce7,#00eaff)';
+                } else if (clamped < 65) {
+                    volBar.style.background = 'linear-gradient(90deg,#22c55e,#4ade80)';
+                } else {
+                    volBar.style.background = 'linear-gradient(90deg,#8b5cf6,#a78bfa)';
+                }
+            }
+        } catch(e) { /* cross-origin safe */ }
+    }
+
+    setInterval(pollVolume, 200);
+})();
+</script>
+"""
+
+components.html(AUDIO_HTML, height=160)
 
 st.markdown("""
 <div class="section-card">
@@ -499,7 +599,7 @@ st.markdown("""
         </li>
         <li class="step-item">
             <div class="step-num">05</div>
-            <div class="step-text">The gesture volume is displayed live on the camera overlay with visual feedback.</div>
+            <div class="step-text">The audio volume <strong>actually changes</strong> based on your gesture — pinch to mute, spread to max.</div>
         </li>
     </ul>
 </div>
