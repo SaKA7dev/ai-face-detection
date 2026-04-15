@@ -1,25 +1,11 @@
 """
 AI Hand Gesture Volume Controller
-Built by Aarav Shukla — Class 9th
+Built by Aarav Shukla — Class 9
 """
-
-import cv2
-import numpy as np
-import math
-import os
-import threading
-import urllib.request
-import time
 
 import streamlit as st
 import streamlit.components.v1 as components
-from streamlit_webrtc import webrtc_streamer
-import av
-import mediapipe as mp
-from mediapipe.tasks import python as mp_python
-from mediapipe.tasks.python import vision
 
-# ── Page Config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Gesture Volume · Aarav Shukla",
     page_icon="🤚",
@@ -28,367 +14,92 @@ st.set_page_config(
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap');
 
 :root {
-    --bg-primary: #0a0a0f;
-    --bg-card: #12121a;
-    --bg-card-hover: #161620;
+    --bg: #0a0a0f;
+    --card: #12121a;
     --border: #1e1e2e;
-    --border-accent: #2a2a3e;
-    --text-primary: #e4e4e7;
-    --text-secondary: #71717a;
-    --text-muted: #52525b;
+    --text: #e4e4e7;
+    --muted: #52525b;
+    --sub: #71717a;
     --accent: #8b5cf6;
-    --accent-soft: rgba(139, 92, 246, 0.12);
-    --accent-glow: rgba(139, 92, 246, 0.25);
-    --green: #22c55e;
-    --amber: #f59e0b;
 }
-
-*, *::before, *::after { box-sizing: border-box; }
 
 .stApp {
-    background: var(--bg-primary) !important;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-    color: var(--text-primary);
+    background: var(--bg) !important;
+    font-family: 'Inter', sans-serif !important;
+    color: var(--text);
 }
-
 header[data-testid="stHeader"] { background: transparent !important; }
 #MainMenu, footer { visibility: hidden !important; }
+.block-container { padding-top: 1.5rem !important; max-width: 720px !important; }
 
-.block-container { padding-top: 2rem !important; max-width: 720px !important; }
-
-/* ── Hero Section ── */
-.app-header {
-    text-align: center;
-    padding: 2rem 0 1.2rem;
-    position: relative;
-}
-
-.app-header::before {
-    content: '';
-    position: absolute;
-    top: -60px; left: 50%; transform: translateX(-50%);
-    width: 400px; height: 200px;
-    background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
-    pointer-events: none;
-    opacity: 0.3;
-}
-
+.app-header { text-align: center; padding: 1.5rem 0 1rem; }
 .app-badge {
-    display: inline-block;
-    padding: 4px 10px; border-radius: 4px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--text-muted); font-size: 0.62rem; font-weight: 500;
-    font-family: 'Fira Code', monospace;
-    letter-spacing: 0.06em;
-    margin-bottom: 0.8rem;
+    display: inline-block; padding: 4px 10px; border-radius: 4px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--muted); font-size: 0.62rem; font-weight: 500;
+    font-family: 'Fira Code', monospace; letter-spacing: 0.06em;
+    margin-bottom: 0.6rem;
 }
-
 .app-title {
-    font-size: 2rem; font-weight: 700; color: var(--text-primary);
-    letter-spacing: -0.03em; line-height: 1.2; margin: 0 0 0.4rem;
+    font-size: 1.9rem; font-weight: 700; color: var(--text);
+    letter-spacing: -0.03em; margin: 0 0 0.3rem;
 }
+.app-title-accent { color: var(--accent); }
+.app-author { font-size: 1rem; font-weight: 600; color: var(--text); margin: 0.5rem 0 0.2rem; }
+.app-author span { color: var(--accent); font-weight: 700; }
+.app-desc { color: var(--sub); font-size: 0.8rem; line-height: 1.5; margin: 0 auto; max-width: 440px; }
 
-.app-title-accent {
-    color: #8b5cf6;
-}
-
-.app-author {
-    font-size: 1.05rem; font-weight: 600; color: var(--text-primary);
-    margin: 0.6rem 0 0.3rem;
-}
-
-.app-author span {
-    color: #8b5cf6; font-weight: 700;
-}
-
-.app-desc {
-    color: var(--text-secondary); font-size: 0.82rem;
-    line-height: 1.5; margin: 0; max-width: 460px;
-    margin-left: auto; margin-right: auto;
-}
-
-/* ── Info Grid ── */
-.info-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px; margin: 1.2rem 0;
-}
-
+.info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 1rem 0; }
 .info-item {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 8px;
-    text-align: center;
-    transition: border-color 0.2s;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 6px; text-align: center;
 }
+.info-val { color: var(--text); font-size: 1.1rem; font-weight: 700; font-family: 'Fira Code', monospace; }
+.info-label { color: var(--muted); font-size: 0.58rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 3px; }
 
-.info-item:hover { border-color: var(--border-accent); }
-
-.info-val {
-    color: var(--text-primary); font-size: 1.15rem; font-weight: 700;
-    font-family: 'Fira Code', monospace;
-    line-height: 1;
-}
-
-.info-label {
-    color: var(--text-muted); font-size: 0.6rem;
-    font-weight: 500; letter-spacing: 0.06em;
-    text-transform: uppercase; margin-top: 4px;
-}
-
-/* ── Cards ── */
 .section-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px 18px;
-    margin: 10px 0;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px; margin: 8px 0;
 }
-
-.section-header {
-    display: flex; align-items: center; gap: 8px;
-    margin-bottom: 10px;
-}
-
-.section-dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent-glow);
-}
-
-.section-dot.green { background: var(--green); box-shadow: 0 0 8px rgba(34, 197, 94, 0.3); }
-
+.section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.section-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.section-dot.green { background: #22c55e; }
 .section-title {
-    color: var(--text-muted); font-size: 0.68rem; font-weight: 600;
+    color: var(--muted); font-size: 0.65rem; font-weight: 600;
     letter-spacing: 0.08em; text-transform: uppercase;
     font-family: 'Fira Code', monospace;
 }
 
-/* ── Steps ── */
 .steps-list { list-style: none; padding: 0; margin: 0; }
-
-.step-item {
-    display: flex; align-items: flex-start; gap: 12px;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(30, 30, 46, 0.5);
-}
-
-.step-item:last-child { border-bottom: none; padding-bottom: 0; }
-
+.step-item { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(30,30,46,0.5); }
+.step-item:last-child { border-bottom: none; }
 .step-num {
-    flex-shrink: 0;
-    width: 24px; height: 24px;
-    border-radius: 6px;
-    background: var(--accent-soft);
-    border: 1px solid rgba(139, 92, 246, 0.15);
-    color: var(--accent);
-    font-size: 0.65rem; font-weight: 600;
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 5px;
+    background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.15);
+    color: var(--accent); font-size: 0.6rem; font-weight: 600;
     font-family: 'Fira Code', monospace;
     display: flex; align-items: center; justify-content: center;
 }
+.step-text { color: var(--sub); font-size: 0.78rem; line-height: 1.4; }
+.step-text strong { color: var(--text); font-weight: 600; }
 
-.step-text {
-    color: var(--text-secondary); font-size: 0.82rem;
-    line-height: 1.5; padding-top: 2px;
-}
-
-.step-text strong { color: var(--text-primary); font-weight: 600; }
-
-/* ── Footer ── */
-.app-footer {
-    text-align: center; padding: 1.5rem 0 1.2rem;
-    border-top: 1px solid var(--border);
-    margin-top: 1.5rem;
-}
-
-.footer-name {
-    color: var(--text-primary); font-weight: 700;
-    font-size: 1.1rem;
-}
-
-.footer-sub {
-    color: var(--text-muted); font-size: 0.72rem;
-    margin-top: 4px; letter-spacing: 0.02em;
-}
-
-.footer-tech {
-    display: flex; justify-content: center; gap: 8px;
-    margin-top: 10px; flex-wrap: wrap;
-}
-
+.app-footer { text-align: center; padding: 1.2rem 0; border-top: 1px solid var(--border); margin-top: 1rem; }
+.footer-name { color: var(--text); font-weight: 700; font-size: 1.05rem; }
+.footer-sub { color: var(--muted); font-size: 0.7rem; margin-top: 3px; }
+.footer-tech { display: flex; justify-content: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .tech-pill {
-    padding: 3px 10px; border-radius: 100px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--text-muted); font-size: 0.62rem;
-    font-family: 'Fira Code', monospace;
-    font-weight: 500; letter-spacing: 0.03em;
+    padding: 3px 9px; border-radius: 100px; background: var(--card);
+    border: 1px solid var(--border); color: var(--muted); font-size: 0.6rem;
+    font-family: 'Fira Code', monospace; font-weight: 500;
 }
 
-/* ── WebRTC overrides ── */
-.stApp iframe { border-radius: 10px !important; }
-
-/* ── Hide the volume data element ── */
-#gesture-vol-data { display: none !important; }
+.stApp iframe { border-radius: 12px !important; }
 </style>""", unsafe_allow_html=True)
 
-# ── Model ─────────────────────────────────────────────────────────────────────
-MODEL_URL = ("https://storage.googleapis.com/mediapipe-models/"
-             "hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task")
-MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hand_landmarker.task")
-
-
-@st.cache_resource
-def load_detector():
-    if not os.path.exists(MODEL_PATH):
-        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-    opts = vision.HandLandmarkerOptions(
-        base_options=mp_python.BaseOptions(model_asset_path=MODEL_PATH),
-        num_hands=1,
-        min_hand_detection_confidence=0.5,
-        min_hand_presence_confidence=0.5,
-        min_tracking_confidence=0.5,
-    )
-    return vision.HandLandmarker.create_from_options(opts)
-
-
-detector = load_detector()
-lock = threading.Lock()
-
-# ── Drawing constants ─────────────────────────────────────────────────────────
-CONNS = [
-    (0,1),(1,2),(2,3),(3,4),(0,5),(5,6),(6,7),(7,8),
-    (0,9),(9,10),(10,11),(11,12),(0,13),(13,14),(14,15),(15,16),
-    (0,17),(17,18),(18,19),(19,20),(5,9),(9,13),(13,17),
-]
-
-@st.cache_resource
-def _get_shared_state():
-    return {"vol": 0.0, "fc": 0}
-
-state = _get_shared_state()
-
-
-def _vol_color(v):
-    """Return BGR color based on volume level."""
-    if v < 30:
-        return (180, 140, 60)
-    elif v < 65:
-        return (94, 197, 34)
-    else:
-        return (92, 92, 246)
-
-
-# ── Frame processor ───────────────────────────────────────────────────────────
-def process_frame(frame):
-    img = frame.to_ndarray(format="bgr24")
-    img = cv2.flip(img, 1)
-    h, w, _ = img.shape
-    fc = state["fc"] = state["fc"] + 1
-
-    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-
-    with lock:
-        res = detector.detect(mp_img)
-
-    vol = state["vol"]
-    detected = bool(res.hand_landmarks)
-
-    if detected:
-        lms = res.hand_landmarks[0]
-        pts = [(int(l.x * w), int(l.y * h)) for l in lms]
-
-        # ── Skeleton (direct draw — no copies) ──
-        for a, b in CONNS:
-            cv2.line(img, pts[a], pts[b], (139, 92, 246), 2, cv2.LINE_AA)
-
-        # ── Joints ──
-        for i, pt in enumerate(pts):
-            if i in (4, 8):
-                cv2.circle(img, pt, 10, (220, 210, 255), -1, cv2.LINE_AA)
-                cv2.circle(img, pt, 11, (139, 92, 246), 2, cv2.LINE_AA)
-            else:
-                cv2.circle(img, pt, 3, (180, 180, 200), -1, cv2.LINE_AA)
-
-        # ── Volume from thumb-index distance ──
-        thumb, idx = pts[4], pts[8]
-        dist = math.hypot(idx[0] - thumb[0], idx[1] - thumb[1])
-        raw = float(np.clip(np.interp(dist, [25, 160], [0, 100]), 0, 100))
-        state["vol"] = 0.55 * state["vol"] + 0.45 * raw
-        vol = state["vol"]
-        vc = _vol_color(vol)
-
-        # ── Connector line ──
-        cv2.line(img, thumb, idx, vc, 2, cv2.LINE_AA)
-
-        # ── Midpoint orb ──
-        mid = ((thumb[0] + idx[0]) // 2, (thumb[1] + idx[1]) // 2)
-        mr = int(np.interp(vol, [0, 100], [5, 18]))
-        cv2.circle(img, mid, mr, vc, -1, cv2.LINE_AA)
-        cv2.circle(img, mid, mr, (255, 255, 255), 1, cv2.LINE_AA)
-
-        # ── Volume percentage near midpoint ──
-        vi = int(vol)
-        label_pos = (mid[0] - 15, mid[1] - mr - 12)
-        cv2.putText(img, f"{vi}%", label_pos,
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(img, f"{vi}%", label_pos,
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, vc, 1, cv2.LINE_AA)
-
-    # ── Arc meter (bottom-right, no overlay copy) ──
-    vi = int(vol)
-    cx, cy, rad = w - 60, h - 65, 38
-    vc = _vol_color(vol)
-    start_angle, sweep = 135, 270
-
-    cv2.ellipse(img, (cx, cy), (rad, rad), 0, start_angle, start_angle + sweep,
-                (25, 25, 35), 2, cv2.LINE_AA)
-    end_angle = start_angle + sweep * vol / 100
-    cv2.ellipse(img, (cx, cy), (rad, rad), 0, start_angle, end_angle, vc, 3, cv2.LINE_AA)
-
-    cv2.putText(img, f"{vi}%", (cx - 18, cy + 5),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (230, 230, 235), 1, cv2.LINE_AA)
-    cv2.putText(img, "VOL", (cx - 12, cy + 18),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.28, (90, 90, 110), 1, cv2.LINE_AA)
-
-    # ── Status indicator (top-left, direct darken — no copy) ──
-    img[0:30, 0:180] = img[0:30, 0:180] // 2
-
-    if detected:
-        status_text = "TRACKING"
-        dot_color = (94, 197, 34)
-    else:
-        status_text = "SHOW HAND"
-        dot_color = (80, 80, 100)
-
-    cv2.circle(img, (14, 15), 4, dot_color, -1, cv2.LINE_AA)
-    cv2.putText(img, status_text, (26, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.42, dot_color, 1, cv2.LINE_AA)
-
-    # ── Branding (top-right, direct darken — no copy) ──
-    img[0:26, w-155:w] = img[0:26, w-155:w] // 2
-    cv2.putText(img, "AARAV SHUKLA", (w - 148, 17),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.40, (139, 92, 246), 1, cv2.LINE_AA)
-
-    # ── Encode volume as bar width for JS bridge ──────────────────────────
-    bar_w = int(np.clip(vol, 0, 100) * w / 100)
-    img[h-3:h, :] = [10, 10, 15]
-    if bar_w > 0:
-        img[h-3:h, 0:bar_w] = [255, 255, 255]
-
-    return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  UI LAYOUT
-# ══════════════════════════════════════════════════════════════════════════════
-
+# ── Header ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="app-header">
     <div class="app-badge">COMPUTER VISION PROJECT</div>
@@ -410,212 +121,186 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div class="section-card">
-    <div class="section-header">
-        <div class="section-dot green"></div>
-        <span class="section-title">Live Camera Feed</span>
+# ── Client-side camera + hand detection + audio ──────────────────────────────
+COMPONENT = """
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;overflow:hidden}
+#wrap{width:100%;background:#000;position:relative;border-radius:12px 12px 0 0;overflow:hidden}
+#out{width:100%;display:block}
+#load{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      color:#71717a;font:500 13px 'Inter',sans-serif;text-align:center}
+#load .spinner{width:28px;height:28px;border:3px solid #1e1e2e;border-top:3px solid #8b5cf6;
+               border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+#ctrl{background:#12121a;padding:12px 14px;display:flex;align-items:center;gap:12px;
+      border-top:1px solid #1e1e2e}
+#pbtn{background:linear-gradient(135deg,#8b5cf6,#7c3aed);border:none;color:#fff;
+      width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:15px;
+      display:flex;align-items:center;justify-content:center}
+#cinfo{flex:1}
+#cinfo-top{display:flex;justify-content:space-between;margin-bottom:4px}
+#sname{color:#e4e4e7;font:500 12px 'Inter',sans-serif}
+#vpct{color:#8b5cf6;font:600 11px 'Fira Code',monospace}
+#vtrack{width:100%;height:5px;background:#1e1e2e;border-radius:99px;overflow:hidden}
+#vfill{height:100%;width:0%;border-radius:99px;background:#8b5cf6;transition:width .15s}
+#sline{text-align:center;padding:6px;color:#52525b;font:500 10px 'Fira Code',monospace;
+       background:#12121a;border-radius:0 0 12px 12px}
+</style>
+
+<div>
+  <div id="wrap">
+    <video id="cam" playsinline style="display:none"></video>
+    <canvas id="out"></canvas>
+    <div id="load"><div class="spinner"></div>Loading hand tracking...</div>
+  </div>
+  <div id="ctrl">
+    <button id="pbtn" onclick="tgl()">&#9654;</button>
+    <div id="cinfo">
+      <div id="cinfo-top"><span id="sname">SoundHelix Song 1</span><span id="vpct">0%</span></div>
+      <div id="vtrack"><div id="vfill"></div></div>
     </div>
-</div>
-""", unsafe_allow_html=True)
-
-webrtc_streamer(
-    key="vol-ctrl",
-    video_frame_callback=process_frame,
-    rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-    media_stream_constraints={
-        "video": {"width": {"ideal": 1280}, "height": {"ideal": 720}, "frameRate": {"ideal": 30}},
-        "audio": False,
-    },
-)
-
-# ── Expose current volume to the browser via a hidden element ─────────────────
-vol_now = int(state["vol"])
-st.markdown(
-    f'<div id="gesture-vol-data" data-vol="{vol_now}"></div>',
-    unsafe_allow_html=True,
-)
-
-# ── Audio player with gesture-controlled volume (self-contained component) ────
-AUDIO_HTML = """
-<div id="gesture-audio-root" style="
-    background:#12121a; border-radius:12px; padding:18px 18px 14px;
-    border:1px solid #1e1e2e; font-family:'Inter',sans-serif;">
-
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <div style="width:7px;height:7px;border-radius:50%;background:#8b5cf6;
-                    box-shadow:0 0 8px rgba(139,92,246,0.25);"></div>
-        <span style="color:#52525b;font-size:0.68rem;font-weight:600;
-                     letter-spacing:0.08em;text-transform:uppercase;
-                     font-family:'Fira Code',monospace;">GESTURE AUDIO CONTROL</span>
-    </div>
-
-    <!-- Play / Pause button -->
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
-        <button id="ga-play-btn" onclick="togglePlay()" style="
-            background:linear-gradient(135deg,#8b5cf6,#7c3aed);border:none;
-            color:#fff;width:42px;height:42px;border-radius:10px;cursor:pointer;
-            font-size:18px;display:flex;align-items:center;justify-content:center;
-            box-shadow:0 0 16px rgba(139,92,246,0.25);transition:transform 0.15s;">▶</button>
-
-        <div style="flex:1;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                <span style="color:#e4e4e7;font-size:0.78rem;font-weight:500;">SoundHelix Song 1</span>
-                <span id="ga-vol-label" style="color:#8b5cf6;font-size:0.72rem;
-                      font-family:'Fira Code',monospace;font-weight:600;">0%</span>
-            </div>
-
-            <!-- Volume bar -->
-            <div style="width:100%;height:6px;background:#1e1e2e;border-radius:100px;overflow:hidden;">
-                <div id="ga-vol-bar" style="width:0%;height:100%;border-radius:100px;
-                     background:linear-gradient(90deg,#8b5cf6,#a78bfa);
-                     transition:width 0.15s ease;"></div>
-            </div>
-        </div>
-    </div>
-
-    <p id="ga-status" style="color:#52525b;font-size:10px;margin:0;
-       font-family:'Fira Code',monospace;text-align:center;letter-spacing:0.03em;">
-        Press ▶ then use hand gestures to control volume
-    </p>
+  </div>
+  <div id="sline">Show your hand to control volume</div>
 </div>
 
-<audio id="ga-audio" loop preload="auto"
-       src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>
+<audio id="aud" loop preload="auto"
+  src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 
 <script>
-(function() {
-    const audio  = document.getElementById('ga-audio');
-    const btn    = document.getElementById('ga-play-btn');
-    const volBar = document.getElementById('ga-vol-bar');
-    const volLbl = document.getElementById('ga-vol-label');
-    const status = document.getElementById('ga-status');
+const vid=document.getElementById('cam'),
+      can=document.getElementById('out'),
+      ctx=can.getContext('2d'),
+      aud=document.getElementById('aud'),
+      pb=document.getElementById('pbtn'),
+      vp=document.getElementById('vpct'),
+      vf=document.getElementById('vfill'),
+      sl=document.getElementById('sline'),
+      ld=document.getElementById('load');
 
-    let playing = false;
-    let cachedVideo = null;
+const CN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
+          [0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],
+          [0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
 
-    window.togglePlay = function() {
-        if (!playing) {
-            audio.play().then(() => {
-                playing = true;
-                btn.textContent = '⏸';
-                status.textContent = 'Playing — gesture controls active';
-                status.style.color = '#22c55e';
-            }).catch(e => {
-                status.textContent = 'Click again (browser blocked autoplay)';
-                status.style.color = '#f59e0b';
-            });
-        } else {
-            audio.pause();
-            playing = false;
-            btn.textContent = '▶';
-            status.textContent = 'Paused';
-            status.style.color = '#52525b';
-        }
-    };
+let vol=0, playing=false, det=false;
 
-    /* ── Find the WebRTC video element ── */
-    function findVideo() {
-        if (cachedVideo && cachedVideo.videoWidth > 0) return cachedVideo;
-        const parent = window.parent.document;
+function tgl(){
+  if(!playing){
+    aud.play().then(()=>{
+      playing=true; pb.innerHTML='&#9646;&#9646;';
+      sl.textContent='Playing — gesture controls active';
+      sl.style.color='#22c55e';
+    }).catch(()=>{
+      sl.textContent='Tap again (browser blocked autoplay)';
+      sl.style.color='#f59e0b';
+    });
+  }else{
+    aud.pause(); playing=false; pb.innerHTML='&#9654;';
+    sl.textContent='Paused'; sl.style.color='#52525b';
+  }
+}
 
-        // Check videos directly in parent
-        for (const v of parent.querySelectorAll('video')) {
-            if (v.videoWidth > 0) { cachedVideo = v; return v; }
-        }
-        // Check inside iframes (streamlit_webrtc uses one)
-        for (const f of parent.querySelectorAll('iframe')) {
-            try {
-                if (!f.contentDocument) continue;
-                for (const v of f.contentDocument.querySelectorAll('video')) {
-                    if (v.videoWidth > 0) { cachedVideo = v; return v; }
-                }
-            } catch(e) { /* cross-origin skip */ }
-        }
-        return null;
+function vc(v){return v<30?'#3c8ce7':v<65?'#22c55e':'#8b5cf6'}
+
+function onRes(r){
+  const w=can.width, h=can.height;
+  ctx.save(); ctx.clearRect(0,0,w,h);
+  ctx.translate(w,0); ctx.scale(-1,1);
+  ctx.drawImage(r.image,0,0,w,h);
+  ctx.restore();
+
+  det=r.multiHandLandmarks&&r.multiHandLandmarks.length>0;
+
+  if(det){
+    const lm=r.multiHandLandmarks[0];
+    const p=lm.map(l=>({x:(1-l.x)*w, y:l.y*h}));
+
+    ctx.strokeStyle='#8b5cf6'; ctx.lineWidth=2;
+    for(const[a,b]of CN){ctx.beginPath();ctx.moveTo(p[a].x,p[a].y);ctx.lineTo(p[b].x,p[b].y);ctx.stroke()}
+
+    for(let i=0;i<p.length;i++){
+      ctx.beginPath();
+      if(i===4||i===8){
+        ctx.arc(p[i].x,p[i].y,8,0,Math.PI*2);ctx.fillStyle='#dcd6ff';ctx.fill();
+        ctx.strokeStyle='#8b5cf6';ctx.lineWidth=2;ctx.stroke();
+      }else{
+        ctx.arc(p[i].x,p[i].y,3,0,Math.PI*2);ctx.fillStyle='#b4b4bc';ctx.fill();
+      }
     }
 
-    /* ── Canvas for reading bottom bar pixels ── */
-    const rc = document.createElement('canvas');
-    let rcReady = false;
-    const rctx = rc.getContext('2d', { willReadFrequently: true });
+    const t=p[4],ix=p[8];
+    const d=Math.sqrt((t.x-ix.x)**2+(t.y-ix.y)**2);
+    const raw=Math.max(0,Math.min(100,(d-20)*100/140));
+    vol=vol*0.55+raw*0.45;
+    const c=vc(vol);
 
-    /* ── Read volume from the white bar width at the bottom of the video ── */
-    function readVolFromVideo() {
-        const video = findVideo();
-        if (!video || video.videoWidth === 0 || video.readyState < 2) return -1;
-        try {
-            const vw = video.videoWidth;
-            const vh = video.videoHeight;
+    ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(ix.x,ix.y);
+    ctx.strokeStyle=c;ctx.lineWidth=2;ctx.stroke();
 
-            // Resize canvas to match video width (only bottom 3 rows)
-            if (rc.width !== vw || !rcReady) {
-                rc.width = vw;
-                rc.height = 3;
-                rcReady = true;
-            }
+    const mx=(t.x+ix.x)/2, my=(t.y+ix.y)/2, mr=5+vol*0.12;
+    ctx.beginPath();ctx.arc(mx,my,mr,0,Math.PI*2);ctx.fillStyle=c;ctx.fill();
+    ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();
 
-            // Draw only the bottom 3 rows of the video
-            rctx.drawImage(video, 0, vh - 3, vw, 3, 0, 0, vw, 3);
-            const px = rctx.getImageData(0, 0, vw, 3).data;
+    const vi=Math.round(vol);
+    ctx.font='600 13px "Fira Code",monospace';ctx.fillStyle='#fff';
+    ctx.textAlign='center';ctx.fillText(vi+'%',mx,my-mr-6);
 
-            // Scan left-to-right: find where brightness drops (white → dark)
-            // Average brightness across the 3 rows for each column
-            let barEnd = 0;
-            for (let x = 0; x < vw; x++) {
-                let brightness = 0;
-                for (let y = 0; y < 3; y++) {
-                    const idx = (y * vw + x) * 4;
-                    brightness += px[idx] + px[idx+1] + px[idx+2];
-                }
-                brightness /= 9;  // average per channel per row
-                if (brightness > 128) {
-                    barEnd = x + 1;  // still in the bright zone
-                } else if (x > 4) {
-                    break;  // transitioned to dark, stop
-                }
-            }
-            return Math.round(barEnd / vw * 100);
-        } catch(e) { /* canvas tainted or cross-origin */ }
-        return -1;
-    }
+    aud.volume=Math.max(0,Math.min(1,vol/100));
+  }
 
-    /* ── Fallback: read from hidden data attribute ── */
-    function readVolFromAttr() {
-        try {
-            const el = window.parent.document.getElementById('gesture-vol-data');
-            if (el) return parseInt(el.getAttribute('data-vol') || '-1', 10);
-        } catch(e) {}
-        return -1;
-    }
+  // arc meter
+  const vi=Math.round(vol),cx=w-50,cy=h-50,rd=32;
+  const sa=135*Math.PI/180, sw=270*Math.PI/180, ea=sa+sw*vol/100;
+  ctx.beginPath();ctx.arc(cx,cy,rd,sa,sa+sw);ctx.strokeStyle='#19191f';ctx.lineWidth=2;ctx.stroke();
+  if(vol>0){ctx.beginPath();ctx.arc(cx,cy,rd,sa,ea);ctx.strokeStyle=vc(vol);ctx.lineWidth=3;ctx.stroke()}
+  ctx.font='500 13px "Fira Code",monospace';ctx.fillStyle='#e4e4e7';ctx.textAlign='center';
+  ctx.fillText(vi+'%',cx,cy+4);
+  ctx.font='500 8px "Fira Code",monospace';ctx.fillStyle='#5a5a6e';ctx.fillText('VOL',cx,cy+15);
 
-    /* ── Main polling loop ── */
-    function updateVolume() {
-        let vol = readVolFromVideo();
-        if (vol < 0) vol = readVolFromAttr();   // fallback
-        if (vol < 0) return;
+  // status top-left
+  ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,0,150,26);
+  ctx.beginPath();ctx.arc(13,13,4,0,Math.PI*2);
+  ctx.fillStyle=det?'#22c55e':'#505064';ctx.fill();
+  ctx.font='500 10px "Fira Code",monospace';ctx.textAlign='left';
+  ctx.fillText(det?'TRACKING':'SHOW HAND',25,17);
 
-        const clamped = Math.max(0, Math.min(100, vol));
-        audio.volume = clamped / 100;
-        volBar.style.width = clamped + '%';
-        volLbl.textContent = clamped + '%';
+  // branding top-right
+  ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(w-130,0,130,22);
+  ctx.font='500 10px "Fira Code",monospace';ctx.fillStyle='#8b5cf6';
+  ctx.textAlign='right';ctx.fillText('AARAV SHUKLA',w-6,15);
 
-        if (clamped < 30) {
-            volBar.style.background = 'linear-gradient(90deg,#3c8ce7,#00eaff)';
-        } else if (clamped < 65) {
-            volBar.style.background = 'linear-gradient(90deg,#22c55e,#4ade80)';
-        } else {
-            volBar.style.background = 'linear-gradient(90deg,#8b5cf6,#a78bfa)';
-        }
-    }
+  const cl=Math.round(Math.max(0,Math.min(100,vol)));
+  vp.textContent=cl+'%';vf.style.width=cl+'%';
+  vf.style.background=vc(vol);
+}
 
-    setInterval(updateVolume, 200);
-})();
+const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+hands.onResults(onRes);
+
+const mob=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const cw=mob?640:1280, ch=mob?480:720;
+
+const camera=new Camera(vid,{
+  onFrame:async()=>{await hands.send({image:vid})},
+  width:cw,height:ch,facingMode:'user'
+});
+
+camera.start().then(()=>{
+  can.width=cw;can.height=ch;ld.style.display='none';
+}).catch(e=>{
+  ld.innerHTML='Camera access denied.<br>Please allow camera and reload.';
+  ld.style.color='#f59e0b';
+});
 </script>
 """
 
-components.html(AUDIO_HTML, height=160)
+components.html(COMPONENT, height=540)
 
+# ── How It Works ──────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="section-card">
     <div class="section-header">
@@ -625,7 +310,7 @@ st.markdown("""
     <ul class="steps-list">
         <li class="step-item">
             <div class="step-num">01</div>
-            <div class="step-text">Click <strong>START</strong> and allow camera access when prompted.</div>
+            <div class="step-text">Allow <strong>camera access</strong> when prompted.</div>
         </li>
         <li class="step-item">
             <div class="step-num">02</div>
@@ -641,12 +326,13 @@ st.markdown("""
         </li>
         <li class="step-item">
             <div class="step-num">05</div>
-            <div class="step-text">The audio volume <strong>actually changes</strong> based on your gesture — pinch to mute, spread to max.</div>
+            <div class="step-text">Press <strong>▶</strong> to play audio — volume changes <strong>in real-time</strong> with your gesture.</div>
         </li>
     </ul>
 </div>
 """, unsafe_allow_html=True)
 
+# ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="app-footer">
     <div class="footer-name">Aarav Shukla</div>
