@@ -22,21 +22,17 @@ header[data-testid="stHeader"]{background:transparent!important}
 #MainMenu,footer{visibility:hidden!important}
 .block-container{padding-top:1rem!important;max-width:720px!important}
 
-.desk-warn{background:#1a1520;border:1.5px solid rgba(139,92,246,0.35);border-radius:10px;
-  padding:12px 16px;margin:0 0 10px;text-align:center}
-.desk-warn p{margin:0;color:#c4b5fd;font-size:0.82rem;font-weight:500;line-height:1.4}
-.desk-warn strong{color:#fff}
+.desk-warn{background:linear-gradient(135deg, #7c3aed, #6d28d9);border:none;border-radius:8px;
+  padding:16px 20px;margin:10px 0 24px;text-align:center;box-shadow:0 4px 12px rgba(124,58,237,0.3)}
+.desk-warn p{margin:0;color:#fff;font-size:0.95rem;font-weight:600;line-height:1.4;letter-spacing:0.02em}
+.desk-warn strong{color:#fff;background:rgba(0,0,0,0.25);padding:2px 8px;border-radius:4px;margin:0 2px}
 
-.app-header{text-align:center;padding:0.8rem 0 0.6rem}
-.ts-badge{display:inline-flex;align-items:center;gap:6px;margin-bottom:6px;
-  padding:4px 12px;border-radius:5px;background:var(--card);border:1px solid var(--border);font-size:0.7rem;font-weight:600}
-.ts-think{color:#2196F3}
-.ts-skool{color:#FF6F00}
-.app-title{font-size:1.7rem;font-weight:700;color:var(--text);letter-spacing:-0.02em;margin:0 0 0.2rem}
+.app-header{text-align:center;padding:0.2rem 0 0.8rem}
+.app-title{font-size:1.9rem;font-weight:700;color:var(--text);letter-spacing:-0.02em;margin:0 0 0.4rem}
 .app-title span{color:var(--accent)}
-.app-author{font-size:0.95rem;font-weight:600;color:var(--text);margin:0.3rem 0 0.15rem}
+.app-author{font-size:1rem;font-weight:600;color:var(--text);margin:0 0 0.4rem}
 .app-author span{color:var(--accent);font-weight:700}
-.app-desc{color:var(--sub);font-size:0.76rem;line-height:1.4;margin:0 auto;max-width:420px}
+.app-desc{color:var(--sub);font-size:0.8rem;line-height:1.5;margin:0 auto;max-width:460px}
 
 .info-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0.6rem 0}
 .info-item{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:7px 4px;text-align:center}
@@ -56,13 +52,12 @@ header[data-testid="stHeader"]{background:transparent!important}
 .step-text{color:var(--sub);font-size:0.72rem;line-height:1.3}
 .step-text strong{color:var(--text);font-weight:600}
 
-.app-footer{text-align:center;padding:0.8rem 0;border-top:1px solid var(--border);margin-top:0.6rem}
-.footer-name{color:var(--text);font-weight:700;font-size:0.95rem}
-.footer-sub{color:var(--muted);font-size:0.65rem;margin-top:2px}
-.footer-ts{margin-top:6px;font-size:0.75rem;font-weight:600}
-.footer-tech{display:flex;justify-content:center;gap:5px;margin-top:6px;flex-wrap:wrap}
-.tech-pill{padding:2px 8px;border-radius:100px;background:var(--card);border:1px solid var(--border);
-  color:var(--muted);font-size:0.56rem;font-family:'Fira Code',monospace;font-weight:500}
+.app-footer{text-align:center;padding:1.2rem 0;border-top:1px solid var(--border);margin-top:1rem}
+.footer-name{color:var(--text);font-weight:700;font-size:1rem}
+.footer-sub{color:var(--muted);font-size:0.7rem;margin-top:4px}
+.footer-tech{display:flex;justify-content:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tech-pill{padding:3px 10px;border-radius:100px;background:var(--card);border:1px solid var(--border);
+  color:var(--muted);font-size:0.6rem;font-family:'Fira Code',monospace;font-weight:500}
 
 .stApp iframe{border-radius:10px!important}
 </style>""", unsafe_allow_html=True)
@@ -70,17 +65,15 @@ header[data-testid="stHeader"]{background:transparent!important}
 # ── Desktop Warning ───────────────────────────────────────────────────────────
 st.markdown("""
 <div class="desk-warn">
-    <p>💻 This project works <strong>best on a laptop or desktop</strong>.<br>
-    Please open on a computer with a webcam for the full experience.</p>
+    <p>💻 FOR THE BEST EXPERIENCE, PLEASE OPEN THIS PROJECT ON A <strong>LAPTOP OR DESKTOP</strong></p>
 </div>
 """, unsafe_allow_html=True)
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="app-header">
-    <div class="ts-badge"><span class="ts-think">think</span><span class="ts-skool">skool</span> · project</div>
     <h1 class="app-title">Gesture <span>Volume</span> Control</h1>
-    <p class="app-author">by <span>Aarav Shukla</span> · Class 9</p>
+    <p class="app-author">Built by <span>Aarav Shukla</span> · Class 9</p>
     <p class="app-desc">
         Control audio volume with hand gestures — pinch to lower, spread to raise.
     </p>
@@ -296,7 +289,6 @@ st.markdown("""
 <div class="app-footer">
     <div class="footer-name">Aarav Shukla</div>
     <div class="footer-sub">Class 9 · Computer Vision Project</div>
-    <div class="footer-ts"><span style="color:#2196F3">think</span><span style="color:#FF6F00">skool</span></div>
     <div class="footer-tech">
         <span class="tech-pill">Python</span>
         <span class="tech-pill">OpenCV</span>
