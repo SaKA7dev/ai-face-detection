@@ -441,8 +441,8 @@ st.markdown("""
 
 st.markdown("""
 <div class="info-grid">
-    <div class="info-item"><div class="info-val">720p</div><div class="info-label">Resolution</div></div>
-    <div class="info-item"><div class="info-val">30</div><div class="info-label">FPS Target</div></div>
+    <div class="info-item"><div class="info-val">1080p</div><div class="info-label">Resolution</div></div>
+    <div class="info-item"><div class="info-val">60</div><div class="info-label">FPS Target</div></div>
     <div class="info-item"><div class="info-val">21</div><div class="info-label">Landmarks</div></div>
     <div class="info-item"><div class="info-val">1</div><div class="info-label">Hand</div></div>
 </div>
@@ -462,7 +462,7 @@ webrtc_streamer(
     video_frame_callback=process_frame,
     rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
     media_stream_constraints={
-        "video": {"width": {"ideal": 1280}, "height": {"ideal": 720}},
+        "video": {"width": {"ideal": 1920}, "height": {"ideal": 1080}, "frameRate": {"ideal": 60}},
         "audio": False,
     },
 )
