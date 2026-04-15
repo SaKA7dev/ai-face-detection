@@ -9,12 +9,9 @@ import math
 import os
 import threading
 import urllib.request
-import http.server
-import socket
 
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer
-import streamlit.components.v1 as components
 import av
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
@@ -295,59 +292,12 @@ CONNS = [
     (0,17),(17,18),(18,19),(19,20),(5,9),(9,13),(13,17),
 ]
 
-# Cache the state dict so the SAME object survives Streamlit reruns.
-# Without this, each rerun creates a new dict, breaking the HTTP bridge.
+# Shared state for volume tracking across frames
 @st.cache_resource
 def _get_shared_state():
     return {"vol": 0.0, "fc": 0}
 
 state = _get_shared_state()
-
-# ── Tiny HTTP server to bridge Python volume → JS audio ──────────────────────
-_server_ready = threading.Event()
-_server_info = {"port": 8765}
-
-
-class _VolHandler(http.server.BaseHTTPRequestHandler):
-    """Serves the current gesture volume as plain text."""
-
-    def do_GET(self):
-        shared = _get_shared_state()
-        vol_int = int(shared["vol"])
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(str(vol_int).encode())
-
-    def log_message(self, *args):
-        pass  # suppress console spam
-
-
-def _start_vol_server():
-    """Start volume server, trying multiple ports."""
-    for port in (8765, 8766, 8767, 8768, 8769):
-        try:
-            srv = http.server.HTTPServer(("127.0.0.1", port), _VolHandler)
-            _server_info["port"] = port
-            _server_ready.set()  # signal that port is ready
-            srv.serve_forever()
-            return
-        except OSError:
-            continue
-    _server_ready.set()  # signal even on failure so main thread doesn't hang
-
-
-@st.cache_resource
-def _ensure_vol_server():
-    t = threading.Thread(target=_start_vol_server, daemon=True)
-    t.start()
-    _server_ready.wait(timeout=3)  # wait until port is bound
-    return _server_info["port"]
-
-
-VOL_SERVER_PORT = _ensure_vol_server()
 
 
 def _vol_color(v):
@@ -545,133 +495,27 @@ webrtc_streamer(
     },
 )
 
-# ── Audio Player ──────────────────────────────────────────────────────────────
+# ── Audio Player (standalone — no server bridge) ─────────────────────────────
 st.markdown("""
 <div class="section-card">
     <div class="section-header">
         <div class="section-dot"></div>
         <span class="section-title">Test Audio</span>
     </div>
+    <div class="audio-wrapper">
+        <audio controls loop preload="auto"
+            style="width:100%; height:36px; border-radius:6px;
+                   filter: invert(0.85) hue-rotate(180deg) saturate(0.5) brightness(0.9);">
+            <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+            Your browser does not support audio.
+        </audio>
+        <p style="color:#52525b; font-size:11px; margin:6px 0 0;
+                  font-family:'Fira Code',monospace; text-align:center; letter-spacing:0.02em;">
+            Press ▶ to play · Volume level shown on camera feed
+        </p>
+    </div>
 </div>
 """, unsafe_allow_html=True)
-
-components.html(f"""
-<div class="audio-wrapper" style="background:#12121a; border-radius:10px; padding:12px 14px;">
-  <audio id="bgm" controls loop preload="auto"
-    style="width:100%; height:36px; border-radius:6px;
-           filter: invert(0.85) hue-rotate(180deg) saturate(0.5) brightness(0.9);">
-    <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
-    Your browser does not support audio.
-  </audio>
-  <div id="vol-display" style="color:#8b5cf6; font-size:12px; margin:6px 0 0;
-            font-family:'Fira Code',monospace; text-align:center; font-weight:600;"></div>
-  <p style="color:#52525b; font-size:11px; margin:4px 0 0;
-            font-family:'Fira Code',monospace; text-align:center; letter-spacing:0.02em;">
-    Press ▶ to test · Volume controlled by hand gesture
-  </p>
-</div>
-<script>
-(function(){{
-  var audio = document.getElementById('bgm');
-  var volDisplay = document.getElementById('vol-display');
-  if (!audio) return;
-
-  var VOL_PORT = {VOL_SERVER_PORT};
-  var currentVol = 50;  // default 50%
-  audio.volume = 0.5;
-
-  // ── Persist state across iframe re-renders ──
-  var SS_KEY = 'gestureAudioState';
-
-  function loadState() {{
-    try {{
-      var raw = window.parent.sessionStorage.getItem(SS_KEY);
-      if (raw) return JSON.parse(raw);
-    }} catch(e){{}}
-    return {{ autoStarted: false, wasStreaming: false, userPaused: false }};
-  }}
-
-  function saveState(s) {{
-    try {{ window.parent.sessionStorage.setItem(SS_KEY, JSON.stringify(s)); }} catch(e){{}}
-  }}
-
-  var appState = loadState();
-  var stableStreamCount = 0;
-  var stableNoStreamCount = 0;
-  var DEBOUNCE = 3;
-
-  // Restore playback if was playing before iframe re-render
-  if (appState.autoStarted && !appState.userPaused) {{
-    audio.play().catch(function(){{}});
-  }}
-
-  // Track manual pause/play
-  audio.addEventListener('pause', function(){{
-    if (appState.wasStreaming) {{
-      appState.userPaused = true;
-      saveState(appState);
-    }}
-  }});
-  audio.addEventListener('play', function(){{
-    appState.userPaused = false;
-    saveState(appState);
-  }});
-
-  // ── Poll volume from Python server (fast, 150ms) ──
-  setInterval(function(){{
-    fetch('http://127.0.0.1:' + VOL_PORT + '/')
-      .then(function(r) {{ return r.text(); }})
-      .then(function(v) {{
-        var vol = parseInt(v);
-        if (!isNaN(vol)) {{
-          currentVol = vol;
-          // Smooth the audio volume transition
-          var target = vol / 100;
-          audio.volume = audio.volume * 0.6 + target * 0.4;
-          if (volDisplay) {{
-            volDisplay.textContent = '🔊 Gesture Volume: ' + vol + '%';
-          }}
-        }}
-      }})
-      .catch(function(){{}});
-  }}, 150);
-
-  // ── Poll stream status with debounce (slower, 500ms) ──
-  setInterval(function(){{
-    try {{
-      var btns = window.parent.document.querySelectorAll('button');
-      var streamDetected = false;
-      for (var i = 0; i < btns.length; i++) {{
-        var txt = (btns[i].innerText || '').trim().toUpperCase();
-        if (txt === 'STOP') {{ streamDetected = true; break; }}
-      }}
-
-      if (streamDetected) {{ stableStreamCount++; stableNoStreamCount = 0; }}
-      else {{ stableNoStreamCount++; stableStreamCount = 0; }}
-
-      var streaming = appState.wasStreaming;
-      if (!appState.wasStreaming && stableStreamCount >= DEBOUNCE) streaming = true;
-      if (appState.wasStreaming && stableNoStreamCount >= DEBOUNCE) streaming = false;
-
-      if (streaming && !appState.wasStreaming) {{
-        appState.userPaused = false;
-        if (audio.paused) {{
-          appState.autoStarted = true;
-          audio.play().catch(function(){{}});
-        }}
-      }}
-      if (!streaming && appState.wasStreaming) {{
-        if (!audio.paused && appState.autoStarted) audio.pause();
-        appState.autoStarted = false;
-      }}
-
-      appState.wasStreaming = streaming;
-      saveState(appState);
-    }} catch(e){{}}
-  }}, 500);
-}})();
-</script>
-""", height=110)
 
 # ── How it works ──────────────────────────────────────────────────────────────
 st.markdown("""
@@ -699,7 +543,7 @@ st.markdown("""
         </li>
         <li class="step-item">
             <div class="step-num">05</div>
-            <div class="step-text">Press ▶ on the audio player — music auto-plays when the stream starts.</div>
+            <div class="step-text">The gesture volume is displayed live on the camera overlay.</div>
         </li>
     </ul>
 </div>
