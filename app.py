@@ -457,6 +457,27 @@ st.markdown("""
 <div class="section-card">
     <div class="section-header">
         <div class="section-dot"></div>
+        <span class="section-title">Test Audio</span>
+    </div>
+    <div style="background:#12121a; border-radius:10px; padding:12px 14px;">
+        <audio controls loop preload="auto"
+            style="width:100%; height:36px; border-radius:6px;
+                   filter: invert(0.85) hue-rotate(180deg) saturate(0.5) brightness(0.9);">
+            <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+            Your browser does not support audio.
+        </audio>
+        <p style="color:#52525b; font-size:11px; margin:6px 0 0;
+                  font-family:'Fira Code',monospace; text-align:center; letter-spacing:0.02em;">
+            Press ▶ to play · Volume level shown on camera feed
+        </p>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="section-card">
+    <div class="section-header">
+        <div class="section-dot"></div>
         <span class="section-title">How It Works</span>
     </div>
     <ul class="steps-list">
