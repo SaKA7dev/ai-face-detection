@@ -62,7 +62,7 @@ header[data-testid="stHeader"] { background: transparent !important; }
 /* ── Hero Section ── */
 .app-header {
     text-align: center;
-    padding: 2rem 0 1.5rem;
+    padding: 2rem 0 1.2rem;
     position: relative;
 }
 
@@ -73,47 +73,41 @@ header[data-testid="stHeader"] { background: transparent !important; }
     width: 400px; height: 200px;
     background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
     pointer-events: none;
-    opacity: 0.4;
+    opacity: 0.3;
 }
 
 .app-badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 5px 12px; border-radius: 100px;
-    background: var(--accent-soft);
-    border: 1px solid rgba(139, 92, 246, 0.2);
-    color: var(--accent); font-size: 0.7rem; font-weight: 500;
+    display: inline-block;
+    padding: 4px 10px; border-radius: 4px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-muted); font-size: 0.62rem; font-weight: 500;
     font-family: 'Fira Code', monospace;
-    letter-spacing: 0.04em;
-    margin-bottom: 1rem;
-}
-
-.app-badge::before {
-    content: '';
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--accent);
-    animation: pulse-dot 2s ease-in-out infinite;
-}
-
-@keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.8); }
+    letter-spacing: 0.06em;
+    margin-bottom: 0.8rem;
 }
 
 .app-title {
-    font-size: 2.4rem; font-weight: 800; color: var(--text-primary);
-    letter-spacing: -0.04em; line-height: 1.15; margin: 0 0 0.5rem;
+    font-size: 2rem; font-weight: 700; color: var(--text-primary);
+    letter-spacing: -0.03em; line-height: 1.2; margin: 0 0 0.4rem;
 }
 
 .app-title-accent {
-    background: linear-gradient(135deg, #8b5cf6, #a78bfa, #c4b5fd);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: #8b5cf6;
+}
+
+.app-author {
+    font-size: 1.05rem; font-weight: 600; color: var(--text-primary);
+    margin: 0.6rem 0 0.3rem;
+}
+
+.app-author span {
+    color: #8b5cf6; font-weight: 700;
 }
 
 .app-desc {
-    color: var(--text-secondary); font-size: 0.88rem;
-    line-height: 1.6; margin: 0; max-width: 480px;
+    color: var(--text-secondary); font-size: 0.82rem;
+    line-height: 1.5; margin: 0; max-width: 460px;
     margin-left: auto; margin-right: auto;
 }
 
@@ -207,14 +201,14 @@ header[data-testid="stHeader"] { background: transparent !important; }
 
 /* ── Footer ── */
 .app-footer {
-    text-align: center; padding: 2rem 0 1.2rem;
+    text-align: center; padding: 1.5rem 0 1.2rem;
     border-top: 1px solid var(--border);
     margin-top: 1.5rem;
 }
 
 .footer-name {
-    color: var(--text-primary); font-weight: 600;
-    font-size: 0.85rem;
+    color: var(--text-primary); font-weight: 700;
+    font-size: 1.1rem;
 }
 
 .footer-sub {
@@ -431,10 +425,10 @@ st.markdown("""
 <div class="app-header">
     <div class="app-badge">COMPUTER VISION PROJECT</div>
     <h1 class="app-title">Gesture <span class="app-title-accent">Volume</span> Control</h1>
+    <p class="app-author">Built by <span>Aarav Shukla</span> · Class 9</p>
     <p class="app-desc">
-        Real-time hand tracking that maps your finger distance
-        to a volume level — powered by MediaPipe's 21-point
-        hand landmark model.
+        Real-time hand tracking that maps thumb-index finger
+        distance to audio volume using MediaPipe hand landmarks.
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -688,7 +682,7 @@ st.markdown("""
 st.markdown("""
 <div class="app-footer">
     <div class="footer-name">Aarav Shukla</div>
-    <div class="footer-sub">Class 9th · Computer Vision Project</div>
+    <div class="footer-sub">Class 9 · Computer Vision Project</div>
     <div class="footer-tech">
         <span class="tech-pill">Python</span>
         <span class="tech-pill">OpenCV</span>
