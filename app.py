@@ -411,13 +411,14 @@ def process_frame(frame):
     cv2.putText(img, "AARAV SHUKLA", (w - 165, 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.42, (139, 92, 246), 1, cv2.LINE_AA)
 
-    # ── Encode volume as pixel data for JS bridge ──────────────────────────
-    # Bottom-left 12x4 block: BGR = (0, 200, volume_0_100)
-    # JS reads R channel = volume, G≈200 = marker to confirm valid data
-    enc = int(np.clip(vol, 0, 100))
-    img[h-4:h, 0:12, 0] = 0      # B = 0
-    img[h-4:h, 0:12, 1] = 200    # G = 200 (marker)
-    img[h-4:h, 0:12, 2] = enc    # R = volume (0-100)
+    # ── Encode volume as bar width for JS bridge ──────────────────────────
+    # Bottom 3px strip: white bar whose width = vol/100 * frame_width
+    # JS reads the bright→dark transition to decode volume percentage
+    # This survives H.264 compression perfectly (spatial, not color-based)
+    bar_w = int(np.clip(vol, 0, 100) * w / 100)
+    img[h-3:h, :] = [10, 10, 15]          # dark background strip
+    if bar_w > 0:
+        img[h-3:h, 0:bar_w] = [255, 255, 255]  # white bar = volume
 
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
@@ -572,32 +573,47 @@ AUDIO_HTML = """
         return null;
     }
 
-    /* ── Canvas for reading pixels ── */
+    /* ── Canvas for reading bottom bar pixels ── */
     const rc = document.createElement('canvas');
-    rc.width = 12; rc.height = 4;
+    let rcReady = false;
     const rctx = rc.getContext('2d', { willReadFrequently: true });
 
-    /* ── Read volume encoded in the bottom-left 12x4 pixel block ── */
+    /* ── Read volume from the white bar width at the bottom of the video ── */
     function readVolFromVideo() {
         const video = findVideo();
         if (!video || video.videoWidth === 0 || video.readyState < 2) return -1;
         try {
             const vw = video.videoWidth;
             const vh = video.videoHeight;
-            // Draw just the bottom-left 12x4 area
-            rctx.drawImage(video, 0, vh - 4, 12, 4, 0, 0, 12, 4);
-            const px = rctx.getImageData(0, 0, 12, 4).data;
-            let totalR = 0, valid = 0;
-            for (let i = 0; i < 48; i++) {      // 12 * 4 pixels
-                const r = px[i * 4];             // R = encoded volume
-                const g = px[i * 4 + 1];         // G ≈ 200 (marker)
-                const b = px[i * 4 + 2];         // B ≈ 0
-                if (g > 120 && b < 80) {          // compression-tolerant check
-                    totalR += r;
-                    valid++;
+
+            // Resize canvas to match video width (only bottom 3 rows)
+            if (rc.width !== vw || !rcReady) {
+                rc.width = vw;
+                rc.height = 3;
+                rcReady = true;
+            }
+
+            // Draw only the bottom 3 rows of the video
+            rctx.drawImage(video, 0, vh - 3, vw, 3, 0, 0, vw, 3);
+            const px = rctx.getImageData(0, 0, vw, 3).data;
+
+            // Scan left-to-right: find where brightness drops (white → dark)
+            // Average brightness across the 3 rows for each column
+            let barEnd = 0;
+            for (let x = 0; x < vw; x++) {
+                let brightness = 0;
+                for (let y = 0; y < 3; y++) {
+                    const idx = (y * vw + x) * 4;
+                    brightness += px[idx] + px[idx+1] + px[idx+2];
+                }
+                brightness /= 9;  // average per channel per row
+                if (brightness > 128) {
+                    barEnd = x + 1;  // still in the bright zone
+                } else if (x > 4) {
+                    break;  // transitioned to dark, stop
                 }
             }
-            if (valid >= 20) return Math.round(totalR / valid);
+            return Math.round(barEnd / vw * 100);
         } catch(e) { /* canvas tainted or cross-origin */ }
         return -1;
     }
