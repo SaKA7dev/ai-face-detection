@@ -304,23 +304,15 @@ def process_frame(frame):
         lms = res.hand_landmarks[0]
         pts = [(int(l.x * w), int(l.y * h)) for l in lms]
 
-        # ── Skeleton ──
+        # ── Skeleton (direct draw — no copies) ──
         for a, b in CONNS:
-            overlay = img.copy()
-            cv2.line(overlay, pts[a], pts[b], (139, 92, 246), 6, cv2.LINE_AA)
-            cv2.addWeighted(overlay, 0.12, img, 0.88, 0, img)
             cv2.line(img, pts[a], pts[b], (139, 92, 246), 2, cv2.LINE_AA)
 
         # ── Joints ──
-        pulse = int(2 * math.sin(fc * 0.18))
         for i, pt in enumerate(pts):
             if i in (4, 8):
-                r = 10 + pulse
-                overlay = img.copy()
-                cv2.circle(overlay, pt, r + 6, (139, 92, 246), -1, cv2.LINE_AA)
-                cv2.addWeighted(overlay, 0.2, img, 0.8, 0, img)
-                cv2.circle(img, pt, r, (220, 210, 255), -1, cv2.LINE_AA)
-                cv2.circle(img, pt, r + 1, (139, 92, 246), 2, cv2.LINE_AA)
+                cv2.circle(img, pt, 10, (220, 210, 255), -1, cv2.LINE_AA)
+                cv2.circle(img, pt, 11, (139, 92, 246), 2, cv2.LINE_AA)
             else:
                 cv2.circle(img, pt, 3, (180, 180, 200), -1, cv2.LINE_AA)
 
@@ -332,59 +324,41 @@ def process_frame(frame):
         vol = state["vol"]
         vc = _vol_color(vol)
 
-        # ── Connector line with glow ──
-        overlay = img.copy()
-        cv2.line(overlay, thumb, idx, vc, 8, cv2.LINE_AA)
-        cv2.addWeighted(overlay, 0.15, img, 0.85, 0, img)
+        # ── Connector line ──
         cv2.line(img, thumb, idx, vc, 2, cv2.LINE_AA)
 
         # ── Midpoint orb ──
         mid = ((thumb[0] + idx[0]) // 2, (thumb[1] + idx[1]) // 2)
-        mr = int(np.interp(vol, [0, 100], [5, 20]))
-        pr = mr + int(2 * math.sin(fc * 0.2))
-        overlay = img.copy()
-        cv2.circle(overlay, mid, pr + 8, vc, -1, cv2.LINE_AA)
-        cv2.addWeighted(overlay, 0.12, img, 0.88, 0, img)
-        cv2.circle(img, mid, pr, vc, -1, cv2.LINE_AA)
-        cv2.circle(img, mid, pr, (255, 255, 255), 1, cv2.LINE_AA)
+        mr = int(np.interp(vol, [0, 100], [5, 18]))
+        cv2.circle(img, mid, mr, vc, -1, cv2.LINE_AA)
+        cv2.circle(img, mid, mr, (255, 255, 255), 1, cv2.LINE_AA)
 
         # ── Volume percentage near midpoint ──
         vi = int(vol)
-        label_pos = (mid[0] - 15, mid[1] - pr - 12)
+        label_pos = (mid[0] - 15, mid[1] - mr - 12)
         cv2.putText(img, f"{vi}%", label_pos,
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2, cv2.LINE_AA)
         cv2.putText(img, f"{vi}%", label_pos,
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, vc, 1, cv2.LINE_AA)
 
-    # ── Arc meter (bottom-right) ──
+    # ── Arc meter (bottom-right, no overlay copy) ──
     vi = int(vol)
-    cx, cy, rad = w - 70, h - 80, 44
+    cx, cy, rad = w - 60, h - 65, 38
     vc = _vol_color(vol)
     start_angle, sweep = 135, 270
 
     cv2.ellipse(img, (cx, cy), (rad, rad), 0, start_angle, start_angle + sweep,
-                (25, 25, 35), 3, cv2.LINE_AA)
+                (25, 25, 35), 2, cv2.LINE_AA)
     end_angle = start_angle + sweep * vol / 100
-    overlay = img.copy()
-    cv2.ellipse(overlay, (cx, cy), (rad, rad), 0, start_angle, end_angle, vc, 7, cv2.LINE_AA)
-    cv2.addWeighted(overlay, 0.2, img, 0.8, 0, img)
     cv2.ellipse(img, (cx, cy), (rad, rad), 0, start_angle, end_angle, vc, 3, cv2.LINE_AA)
 
-    tip_a = math.radians(end_angle)
-    tx = int(cx + rad * math.cos(tip_a))
-    ty = int(cy + rad * math.sin(tip_a))
-    tp = int(3 + 1.5 * math.sin(fc * 0.12))
-    cv2.circle(img, (tx, ty), tp, (255, 255, 255), -1, cv2.LINE_AA)
+    cv2.putText(img, f"{vi}%", (cx - 18, cy + 5),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (230, 230, 235), 1, cv2.LINE_AA)
+    cv2.putText(img, "VOL", (cx - 12, cy + 18),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.28, (90, 90, 110), 1, cv2.LINE_AA)
 
-    cv2.putText(img, f"{vi}%", (cx - 20, cy + 6),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (230, 230, 235), 2, cv2.LINE_AA)
-    cv2.putText(img, "VOL", (cx - 14, cy + 22),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.32, (90, 90, 110), 1, cv2.LINE_AA)
-
-    # ── Status indicator (top-left) ──
-    overlay = img.copy()
-    cv2.rectangle(overlay, (0, 0), (210, 36), (0, 0, 0), -1)
-    cv2.addWeighted(overlay, 0.5, img, 0.5, 0, img)
+    # ── Status indicator (top-left, direct darken — no copy) ──
+    img[0:30, 0:180] = img[0:30, 0:180] // 2
 
     if detected:
         status_text = "TRACKING"
@@ -393,26 +367,20 @@ def process_frame(frame):
         status_text = "SHOW HAND"
         dot_color = (80, 80, 100)
 
-    dot_r = 4 + int(1.5 * math.sin(fc * 0.15)) if detected else 4
-    cv2.circle(img, (16, 18), dot_r, dot_color, -1, cv2.LINE_AA)
-    cv2.putText(img, status_text, (28, 24),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, dot_color, 1, cv2.LINE_AA)
+    cv2.circle(img, (14, 15), 4, dot_color, -1, cv2.LINE_AA)
+    cv2.putText(img, status_text, (26, 20),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.42, dot_color, 1, cv2.LINE_AA)
 
-    # ── Branding (top-right) ──
-    overlay2 = img.copy()
-    cv2.rectangle(overlay2, (w - 175, 0), (w, 30), (0, 0, 0), -1)
-    cv2.addWeighted(overlay2, 0.45, img, 0.55, 0, img)
-    cv2.putText(img, "AARAV SHUKLA", (w - 165, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (139, 92, 246), 1, cv2.LINE_AA)
+    # ── Branding (top-right, direct darken — no copy) ──
+    img[0:26, w-155:w] = img[0:26, w-155:w] // 2
+    cv2.putText(img, "AARAV SHUKLA", (w - 148, 17),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.40, (139, 92, 246), 1, cv2.LINE_AA)
 
     # ── Encode volume as bar width for JS bridge ──────────────────────────
-    # Bottom 3px strip: white bar whose width = vol/100 * frame_width
-    # JS reads the bright→dark transition to decode volume percentage
-    # This survives H.264 compression perfectly (spatial, not color-based)
     bar_w = int(np.clip(vol, 0, 100) * w / 100)
-    img[h-3:h, :] = [10, 10, 15]          # dark background strip
+    img[h-3:h, :] = [10, 10, 15]
     if bar_w > 0:
-        img[h-3:h, 0:bar_w] = [255, 255, 255]  # white bar = volume
+        img[h-3:h, 0:bar_w] = [255, 255, 255]
 
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
@@ -435,8 +403,8 @@ st.markdown("""
 
 st.markdown("""
 <div class="info-grid">
-    <div class="info-item"><div class="info-val">1080p</div><div class="info-label">Resolution</div></div>
-    <div class="info-item"><div class="info-val">60</div><div class="info-label">FPS Target</div></div>
+    <div class="info-item"><div class="info-val">720p</div><div class="info-label">Resolution</div></div>
+    <div class="info-item"><div class="info-val">30</div><div class="info-label">FPS Target</div></div>
     <div class="info-item"><div class="info-val">21</div><div class="info-label">Landmarks</div></div>
     <div class="info-item"><div class="info-val">1</div><div class="info-label">Hand</div></div>
 </div>
@@ -456,7 +424,7 @@ webrtc_streamer(
     video_frame_callback=process_frame,
     rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
     media_stream_constraints={
-        "video": {"width": {"ideal": 1920}, "height": {"ideal": 1080}, "frameRate": {"ideal": 60}},
+        "video": {"width": {"ideal": 1280}, "height": {"ideal": 720}, "frameRate": {"ideal": 30}},
         "audio": False,
     },
 )
